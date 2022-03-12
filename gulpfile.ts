@@ -1,7 +1,11 @@
+import del from "del";
 import * as fse from "fs-extra";
 import * as gulp from "gulp";
+import concat from "gulp-concat";
+import sourcemaps from "gulp-sourcemaps";
+import ts from "gulp-typescript";
+import uglify from "gulp-uglify";
 import path from "path";
-// import imagemin from "gulp-imagemin";
 
 // Corrects console.warn to console.log
 async function correctMain() {
@@ -22,16 +26,40 @@ function copyHtml() {
   return gulp.src("src/*.html").pipe(gulp.dest("dist"));
 }
 
-// // Optimize images, terminate by returning stream
-// function optimizeImages() {
-//   return gulp
-//     .src("src/images/*")
-//     .pipe(imagemin())
-//     .pipe(gulp.dest("dist/images"));
-// }
+// Clear temp and dist folders
+function cleanAll() {
+  return del(["./tmp", "./dist"]);
+}
+
+// Convert ts files to js, store in tmp folder
+function transpileTs() {
+  const tsProject = ts.createProject("./tsconfig.json");
+  return tsProject
+    .src()
+    .pipe(sourcemaps.init())
+    .pipe(tsProject())
+    .js.pipe(sourcemaps.write())
+    .pipe(gulp.dest("./tmp/js"));
+}
+
+// Combine & compress js files in tmp folder into one file and migrate final to dist/
+function compressJs() {
+  return gulp
+    .src("./tmp/**/*.js")
+    .pipe(sourcemaps.init({ loadMaps: true }))
+    .pipe(uglify())
+    .pipe(concat("App.min.js"))
+    .pipe(sourcemaps.write("./sourcemaps"))
+    .pipe(gulp.dest("./dist/js"));
+}
 
 exports.correctMain = correctMain;
 exports.testLogging = logMessage;
 exports.testCopy = copyHtml;
-// exports["imageMin"] = optimizeImages;
-exports.default = async () => console.log("Running default");
+exports.default = gulp.series(
+  cleanAll,
+  copyHtml,
+  correctMain,
+  transpileTs,
+  compressJs
+);
